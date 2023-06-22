@@ -54,7 +54,8 @@ from warnings import warn as _warn
 from math import log as _log, exp as _exp, pi as _pi, e as _e, ceil as _ceil
 from math import sqrt as _sqrt, acos as _acos, cos as _cos, sin as _sin
 from math import tau as TWOPI, floor as _floor, isfinite as _isfinite
-from math import lgamma as _lgamma, fabs as _fabs, log2 as _log2
+from math import lgamma as _lgamma, fabs as _fabs, log2 as _log2, log10 as _log10
+from decimal import Decimal, Context, getcontext
 from os import urandom as _urandom
 from _collections_abc import Sequence as _Sequence
 from operator import index as _index
@@ -838,6 +839,38 @@ class Random(_random.Random):
             v *= alpha / (a / (us * us) + b)
             if _log(v) <= h - _lgamma(k + 1) - _lgamma(n - k + 1) + (k - m) * lpq:
                 return k
+            
+    def poissonvariate(self, lambd = 10):
+        """PTRS
+        """
+        if lambd < 10 :
+            exlam = _exp(-lambd)
+            k = 0
+            prod = 1
+            while True:
+                U = random()
+                prod *= U
+                if prod > exlam:
+                    k += 1
+                else:
+                    return k
+        elif lambd >= 10 :
+            lnlam = _log(lambd)
+            b = 0.931 + 2.53 * _sqrt(lambd)
+            a = - 0.059 + 0.02483 * b
+            vr = 0.9277 - 3.6224 / (b - 2)
+            invalpha = 1.1239 + 1.1328 / (b - 3.4)
+            
+            while True:
+                U, V = random() - 0.5, random()
+                us = 0.5 - _fabs(U)
+                k = _floor(( 2 * a / us + b) * U + lambd + 0.43)
+                if (us >= 0.07) and (V <= vr):
+                    return k
+                if (k <= 0) or (us < 0.013 and V > us):
+                    continue
+                if (_log(V) + _log(invalpha) - _log(a / us**2 + b)) <= (-lambd + k * lnlam - _lgamma(k)):
+                    return k 
 
 
 ## ------------------------------------------------------------------
