@@ -86,6 +86,7 @@ __all__ = [
     "lognormvariate",
     "normalvariate",
     "paretovariate",
+    "poissonvariate",
     "randbytes",
     "randint",
     "random",
@@ -871,6 +872,143 @@ class Random(_random.Random):
                     continue
                 if (_log(V) + _log(invalpha) - _log(a / us**2 + b)) <= (-lambd + k * lnlam - _lgamma(k)):
                     return k 
+
+    
+    ##------------------ approximate sampling with arbitrary precision --------------------
+
+    def mpuniform(self, precision=30):
+        """ multiprecision uniform number
+        """
+        precision2 = int(_log2(10 ** precision))
+        univariate = getrandbits(precision2)
+        getcontext().prec = precision
+        univariate = univariate / Decimal(10**precision)
+        return univariate
+    
+    def mpexpovariate(self, precision=30):
+        """ Improved Von Neumann's algorithm by Charles F. F. Karney 
+        """
+        getcontext().prec = precision
+        l = 0
+        while True:
+            x = self.mpuniform(precision)
+            if x > 0.5:
+                l += 1
+                continue 
+            n = 0; u = x
+            while u > (u := self.mpuniform(precision)):
+                n += 1
+            if n % 2 == 1:
+                l += 1
+                continue
+            else:
+                return Decimal(0.5 * l) + x
+
+    def _half_exp_bernoulli(self, precision = 30):
+        """ Exact Bernoulli variate with parameter 1 / sqrt(e)
+        """
+        if not (u1 := self.mpuniform(precision)) < 0.5: return True
+        while True:
+            if not (u2 := self.mpuniform(precision)) > u1: return False
+            if not (u1 := self.mpuniform(precision)) > u2: return True 
+
+    def _general_exp_variate(self, x, param, precision = 30):
+        """generalization of Von Neumann Trick
+        """
+        y = x; n= 0
+        while True:
+            z = self.mpuniform(precision)
+            r = self.mpuniform(precision)
+            if z > y or r > param:
+                break
+            y = z
+            n += 1
+        return (n % 2 == 0)
+
+        # if not (u1 := mpuniform()) < x: return True
+        # while True:
+        #     if not (u2 := mpuniform()) > u1: return False
+        #     if not (u1 := mpuniform()) > u2: return True 
+
+
+    def mpnormalvariate(self, mu=0.0, sigma=1.0, precision=30):
+        """multi precision Normal distribution.
+
+            uses Charles F. F. Karney method
+            ref: https://arxiv.org/pdf/1303.6257.pdf
+        """
+        getcontext().prec = precision
+        while True:
+            k = 0
+            # N1
+            while not self._half_exp_bernoulli(): pass
+            while self._half_exp_bernoulli():
+                k += 1
+            # N2
+            check = True
+            for i in range(k*(k-1)): check *= self._half_exp_bernoulli()
+            if not check: continue
+            #N3
+            x = self.mpuniform(precision = precision)
+            #N4
+            check = True
+            for i in range(k+1): check *= self._general_exp_variate(x, (2*k+x)/(2*k+2), precision)
+            if check: break
+        #N5
+        x
+        y = Decimal(k) + Decimal(x)
+        #N6
+        if random() > 0.5 : sgn = 1
+        else: sgn = -1
+        return Decimal(sgn) * y 
+
+    def mpbinomial(self, n = 10, p = 0.5, precision = 30, err = 0.01):
+        """multi precision Binomial distribution
+        it takes a parameter error as input for error allowance
+        """
+        precision = max(precision, int(_log10(n)))
+        context = Context(prec=precision)
+        reverse = False
+        if p > 0.5:
+            p = 1 - p
+            reverse = True
+        p = context.create_decimal(str(p))
+        err = context.create_decimal(str(err))
+        if n > (1-2*p)**2 / (err**2 * p * (1-p)):
+            # print("normal")
+            z = self.mpnormalvariate(precision = precision)
+            if not reverse:
+                return int(context.fma(context.sqrt(n*p*(1-p)), z, n * p))
+            else:
+                return n - int(context.fma(context.sqrt(n*p*(1-p)), z, n * p))
+        if n < err / (2 * p**2):
+            # print("poisson")
+            z = self.poissonvariate(lambd = float(n * p))
+            if reverse:
+                return z
+            else:
+                return n - z
+        else:
+            # print("vanilla")
+            z = self.binomialvariate(n = n, p = float(p))
+            if reverse:
+                return z
+            else:
+                return n - z
+            
+    def mppoisson(self, lambd = 100, precision = 30, err = 0.01):
+        """multi precision Poisson distribution
+        it takes a parameter error as input for error allowance
+        """
+        precision = max(precision, int(_log10(lambd)))
+        context = Context(prec=precision)
+        err = context.create_decimal(str(err))
+        if lambd > 12 / (err**2):
+            z = self.mpnormalvariate(precision = precision)
+            return int(context.fma(context.sqrt(lambd), z, lambd))
+        else:
+            z = self.poissonvariate(lambd=lambd)
+            return z 
 
 
 ## ------------------------------------------------------------------
