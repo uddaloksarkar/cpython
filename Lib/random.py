@@ -99,6 +99,13 @@ __all__ = [
     "uniform",
     "vonmisesvariate",
     "weibullvariate",
+    "mpuniform",
+    "mpexpovariate",
+    "mpnormalvariate",
+    "mpnormalvariate",
+    "mpbinomial",
+    "mppoisson",
+
 ]
 
 NV_MAGICCONST = 4 * _exp(-0.5) / _sqrt(2.0)
@@ -984,14 +991,14 @@ class Random(_random.Random):
         if n < err / (2 * p**2):
             # print("poisson")
             z = self.poissonvariate(lambd = float(n * p))
-            if reverse:
+            if not reverse:
                 return z
             else:
                 return n - z
         else:
             # print("vanilla")
-            z = self.binomialvariate(n = n, p = float(p))
-            if reverse:
+            z = self.binomialvariate(n = int(n), p = float(p))
+            if not reverse:
                 return z
             else:
                 return n - z
@@ -1085,6 +1092,12 @@ getstate = _inst.getstate
 setstate = _inst.setstate
 getrandbits = _inst.getrandbits
 randbytes = _inst.randbytes
+mpuniform = _inst.mpuniform
+mpexpovariate = _inst.mpexpovariate
+mpnormalvariate = _inst.mpnormalvariate
+mpnormalvariate = _inst.mpnormalvariate
+mpbinomial = _inst.mpbinomial
+mppoisson = _inst.mppoisson
 
 
 ## ------------------------------------------------------
